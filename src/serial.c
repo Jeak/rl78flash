@@ -24,6 +24,7 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <errno.h>
 
 extern int verbose_level;
 
@@ -143,6 +144,23 @@ int serial_set_dtr(port_handle_t fd, int level)
         command = TIOCMBIS;
     }
     return ioctl(fd, command, &dtr);
+}
+
+int serial_get_cts(port_handle_t fd)
+{
+    int status, flag = 0;
+    if (ioctl(fd, TIOCMGET, &status) == -1)
+    {
+      printf("TIOCMGET failed\n");
+    }
+   else {
+        flag = !(status & TIOCM_CTS);
+    //   if (flag)
+    //      printf("CTS is set\n");
+    //   else
+    //      printf("CTS is not set\n");
+   }
+    return(flag);
 }
 
 int serial_set_rts(port_handle_t fd, int level)

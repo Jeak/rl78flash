@@ -21,6 +21,8 @@
 #include <string.h>
 #include <stdio.h>
 #include "wait_kbhit.h"
+#include <errno.h>
+#include <sys/ioctl.h>
 
 #include "serial.h"
 #include "rl78.h"
@@ -29,7 +31,13 @@ extern int verbose_level;
 static unsigned char communication_mode;
 
 static void rl78_set_reset(port_handle_t fd, int mode, int value)
+// Set reset signal for MCU based on mode (not applicable for mode 5 with hardware switch)
 {
+    if (mode == 4) // operating in mode 5
+    {
+        printf("No GPIO SW reset available, must use switch\r\n");
+    }
+    else {
     int level  = (mode & MODE_INVERT_RESET) ? !value : value;
 
     if (MODE_RESET_RTS == (mode & MODE_RESET))
@@ -40,16 +48,22 @@ static void rl78_set_reset(port_handle_t fd, int mode, int value)
     {
         serial_set_dtr(fd, level);
     }
+    }
 }
 
 int rl78_reset_init(port_handle_t fd, int wait, int baud, int mode, float voltage)
+// Routine for resetting RL78 and initializing it in programming mode
 {
     unsigned char r;
+    //(mode = desired communication mode from terminal input - 1)
+
+   // Determine UART mode from mode value
     if (MODE_UART_1 == (mode & MODE_UART))
     {
         r = SET_MODE_1WIRE_UART;
         communication_mode = 1;
     }
+    
     else
     {
         r = SET_MODE_2WIRE_UART;
@@ -57,25 +71,71 @@ int rl78_reset_init(port_handle_t fd, int wait, int baud, int mode, float voltag
     }
     if (4 <= verbose_level)
     {
+        if (mode == 4) // Special case for mode 5
+        {
+            printf("Using communication mode 5 (HW RESET with CTS reading RESET)\n");
+        }
+        else
+        {
         printf("Using communication mode %u%s\n",
                (mode & (MODE_UART | MODE_RESET)) + 1,
                (mode & MODE_INVERT_RESET) ? " with RESET inversion" : "");
+        }   
     }
-    rl78_set_reset(fd, mode, 0);                            /* RESET -> 0 */
-    serial_set_txd(fd, 0);                                  /* TOOL0 -> 0 */
-    if (wait)
+    serial_set_rts(fd, 0); // TOOL0 -> 0
+    // Begin reset procedure
+    if (mode == 4) // sequencing for mode 5
     {
-        printf("Turn MCU's power on and press any key...");
-        wait_kbhit();
-        printf("\n");
+        printf("Press and let go of RESET.");
+        int reset = serial_get_cts(fd);
+        if (reset == 1)
+        {
+            while (1) // while CTS/RESET is high, wait
+            {
+                reset = serial_get_cts(fd);
+                if (reset == 0)
+                {
+                    printf("\nGot reset press.");
+                    break;
+                }
+            }
+        }
+        
+        while (1) // while CTS/RESET is low, wait
+        {
+            reset = serial_get_cts(fd);
+            if (reset == 1)
+            {
+               printf("\nGot reset release. Setting TOOL0 to 1.\n");
+               break;
+            }
+        }
+        // Reset is now high
+        serial_flush(fd);
+        usleep(3000);
+        serial_set_txd(fd,1); // TOOL0 -> 1
+        usleep(1000);
+        serial_flush(fd);
+        
     }
-    serial_flush(fd);
-    usleep(1000);
-    rl78_set_reset(fd, mode, 1);                            /* RESET -> 1 */
-    usleep(3000);
-    serial_set_txd(fd, 1);                                  /* TOOL0 -> 1 */
-    usleep(1000);
-    serial_flush(fd);
+    else 
+    { // sequencing for mode 1,2,3,4
+        rl78_set_reset(fd, mode, 0);                            /* RESET -> 0 */
+        serial_set_txd(fd, 0);                                  /* TOOL0 -> 0 */
+        if (wait)
+        {
+            printf("Turn MCU's power on and press any key...");
+            wait_kbhit();
+            printf("\n");
+        }
+        serial_flush(fd);
+        usleep(1000);
+        rl78_set_reset(fd, mode, 1);                            /* RESET -> 1 */
+        usleep(3000);
+        serial_set_txd(fd, 1);                                  /* TOOL0 -> 1 */
+        usleep(1000);
+        serial_flush(fd);
+    }
     if (3 <= verbose_level)
     {
         printf("Send 1-byte data for setting mode\n");
@@ -91,11 +151,18 @@ int rl78_reset_init(port_handle_t fd, int wait, int baud, int mode, float voltag
 
 int rl78_reset(port_handle_t fd, int mode)
 {
-    serial_set_txd(fd, 1);                                  /* TOOL0 -> 1 */
-    rl78_set_reset(fd, mode, 0);                            /* RESET -> 0 */
-    usleep(10000);
-    rl78_set_reset(fd, mode, 1);                            /* RESET -> 1 */
+    if (mode == 4) // operating in mode 5
+    {
+        printf("Force reset with SW not available \r\n");
+    }
+    else {
+        serial_set_txd(fd, 1);                                  /* TOOL0 -> 1 */
+        rl78_set_reset(fd, mode, 0);                            /* RESET -> 0 */
+        usleep(10000);
+        rl78_set_reset(fd, mode, 1);                            /* RESET -> 1 */ 
+    }
     return 0;
+    
 }
 
 static

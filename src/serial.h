@@ -41,6 +41,7 @@ port_handle_t serial_open(const char *port);
 int serial_set_baud(port_handle_t fd, int baud);
 int serial_set_parity(port_handle_t fd, int enable, int odd_parity);
 int serial_set_dtr(port_handle_t fd, int level);
+int serial_get_cts(port_handle_t fd);
 int serial_set_rts(port_handle_t fd, int level);
 int serial_set_txd(port_handle_t fd, int level);
 int serial_flush(port_handle_t fd);

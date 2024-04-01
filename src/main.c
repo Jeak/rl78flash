@@ -53,6 +53,7 @@ const char *usage =
     "\t\t\tn=2 Two-wire UART, Reset by DTR\n"
     "\t\t\tn=3 Single-wire UART, Reset by RTS\n"
     "\t\t\tn=4 Two-wire UART, Reset by RTS\n"
+    "\t\t\tn=5 Single-wire UART, Hardware Reset, reset state read by CTS (modified mode 1/3)\n"
     "\t\t\tdefault: n=1\n"
     "\t-P n\tSet protocol version\n"
     "\t\t\tn=-1 Try to autodetect the protocol version from the unit's Silicon Signature\n"
@@ -117,14 +118,21 @@ int main(int argc, char *argv[])
             break;
         case 'm':
             mode = strtol(optarg, &endp, 10) - 1;
+            // mode = desired communication mode from terminal input - 1
             if (optarg == endp
                 || MODE_MAX_VALUE < mode
                 || MODE_MIN_VALUE > mode)
             {
                 fprintf(stderr, "Invalid mode\n");
                 printf("%s", usage);
+                // For debug
+                //printf("Communication mode passed to rl78 funcs: %i\r\n", mode);
+                //printf("Mode value expression: %i\r\n",mode_val_expr);
                 return EINVAL;
             }
+            // For debug
+            //printf("Communication mode passed to rl78 funcs: %i\r\n", mode);
+            //printf("Mode value expression: %i\r\n",mode_val_expr);
             break;
         case 't':
             terminal = 1;
@@ -222,7 +230,16 @@ int main(int argc, char *argv[])
 
     if (invert_reset)
     {
-        mode |= MODE_INVERT_RESET;
+        if (mode == 4)
+        {
+            mode = 4;
+            printf("Using mode 5. INVERT RESET command will not be applied.\r\n");
+        }
+        else
+        {
+            mode |= MODE_INVERT_RESET;
+        }
+        
     }
     char *portname = NULL;
     char *filename = NULL;

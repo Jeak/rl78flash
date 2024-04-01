@@ -63,19 +63,23 @@
 #define RESPONSE_FORMAT_ERROR           (-2)
 #define RESPONSE_EXPECTED_LENGTH_ERROR  (-3)
 
+// serial command data to tell RL78 which serial mode to use for programming
 #define SET_MODE_1WIRE_UART 0x3A
 #define SET_MODE_2WIRE_UART 0x00
 
 #define RL78_MIN_VOLTAGE    1.8f
 #define RL78_MAX_VOLTAGE    5.5f
 
+// Communication modes passed to RL78 funcs
+// Mode 1: MODE
 #define MODE_UART         1
 #define MODE_UART_1       0
 #define MODE_UART_2       MODE_UART
 #define MODE_RESET        2
 #define MODE_RESET_DTR    0
 #define MODE_RESET_RTS    MODE_RESET
-#define MODE_MAX_VALUE    (MODE_UART | MODE_RESET)
+#define MODE_MAX_VALUE    4
+//#define MODE_MAX_VALUE    (MODE_UART | MODE_RESET)
 #define MODE_MIN_VALUE    0
 #define MODE_INVERT_RESET 0x80
 
