@@ -10,7 +10,8 @@ Features:
 * Only S-record image files are accepted as input files;
 * RL78/G10 parts can be programmed only in 1-wire mode,
   other RL78 parts support both modes (1-wire and 2-wire);
-* Reset signal is controlled by DTR or RTS signal.
+* Supports software control of reset signal by DTR or RTS signal.
+* Supports hardware monitoring of reset signal by observing CTS signal.
 
 # Thanks to
 

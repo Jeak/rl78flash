@@ -153,13 +153,14 @@ int serial_get_cts(port_handle_t fd)
     {
       printf("TIOCMGET failed\n");
     }
-   else {
+    else {
         flag = !(status & TIOCM_CTS);
-    //   if (flag)
-    //      printf("CTS is set\n");
-    //   else
-    //      printf("CTS is not set\n");
-   }
+       if (flag == 32) {
+        
+          flag = 1;
+          
+       }
+    }
     return(flag);
 }
 
@@ -183,10 +184,12 @@ int serial_set_txd(port_handle_t fd, int level)
     unsigned long command;
     if (level)
     {
+        // stop sending zero bits (logic high)
         command = TIOCCBRK;
     }
     else
     {
+        // start sending zero bits (logic low)
         command = TIOCSBRK;
     }
     return ioctl(fd, command);

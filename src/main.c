@@ -490,9 +490,18 @@ int main(int argc, char *argv[])
         {
             if (1 <= verbose_level)
             {
-                printf("Reset MCU\n");
+                if (mode == 4) // operating in mode 5
+                {
+                    printf("Done! Use HW reset switch to reset MCU.\r\n");
+                }
+                else {
+                    printf("Resetting MCU...\n");
+                }
             }
-            rl78_reset(fd, mode);
+            if (mode != 4) // Case for HW reset switch
+            {
+                rl78_reset(fd, mode);
+            }
         }
     }
     while (0);

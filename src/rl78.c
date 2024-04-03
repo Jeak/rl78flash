@@ -57,7 +57,7 @@ int rl78_reset_init(port_handle_t fd, int wait, int baud, int mode, float voltag
     unsigned char r;
     //(mode = desired communication mode from terminal input - 1)
 
-   // Determine UART mode from mode value
+   // Determine UART mode from mode argument
     if (MODE_UART_1 == (mode & MODE_UART))
     {
         r = SET_MODE_1WIRE_UART;
@@ -73,6 +73,7 @@ int rl78_reset_init(port_handle_t fd, int wait, int baud, int mode, float voltag
     {
         if (mode == 4) // Special case for mode 5
         {
+            communication_mode = 5;
             printf("Using communication mode 5 (HW RESET with CTS reading RESET)\n");
         }
         else
@@ -82,11 +83,13 @@ int rl78_reset_init(port_handle_t fd, int wait, int baud, int mode, float voltag
                (mode & MODE_INVERT_RESET) ? " with RESET inversion" : "");
         }   
     }
-    serial_set_rts(fd, 0); // TOOL0 -> 0
     // Begin reset procedure
     if (mode == 4) // sequencing for mode 5
     {
-        printf("Press and let go of RESET.");
+        //printf("Turn MCU's power on with RESET low. Press any key to continue...\n");
+        //wait_kbhit();
+        serial_set_txd(fd, 0);
+        printf("Press and hold RESET.\n");
         int reset = serial_get_cts(fd);
         if (reset == 1)
         {
@@ -95,7 +98,9 @@ int rl78_reset_init(port_handle_t fd, int wait, int baud, int mode, float voltag
                 reset = serial_get_cts(fd);
                 if (reset == 0)
                 {
-                    printf("\nGot reset press.");
+                    printf("Got reset press. Hang on...\n");
+                    usleep(100000);
+                    printf("Let go of RESET.\n");
                     break;
                 }
             }
@@ -106,7 +111,7 @@ int rl78_reset_init(port_handle_t fd, int wait, int baud, int mode, float voltag
             reset = serial_get_cts(fd);
             if (reset == 1)
             {
-               printf("\nGot reset release. Setting TOOL0 to 1.\n");
+               printf("Got reset release. Attempting to set communication mode...\n");
                break;
             }
         }
@@ -118,7 +123,7 @@ int rl78_reset_init(port_handle_t fd, int wait, int baud, int mode, float voltag
         serial_flush(fd);
         
     }
-    else 
+    else if ((mode == 0) | (mode == 1) | (mode == 2))
     { // sequencing for mode 1,2,3,4
         rl78_set_reset(fd, mode, 0);                            /* RESET -> 0 */
         serial_set_txd(fd, 0);                                  /* TOOL0 -> 0 */
@@ -141,7 +146,7 @@ int rl78_reset_init(port_handle_t fd, int wait, int baud, int mode, float voltag
         printf("Send 1-byte data for setting mode\n");
     }
     serial_write(fd, &r, 1);
-    if (1 == communication_mode)
+    if ((1 == communication_mode) | (5 == communication_mode))
     {
         serial_read(fd, &r, 1);
     }
@@ -151,16 +156,10 @@ int rl78_reset_init(port_handle_t fd, int wait, int baud, int mode, float voltag
 
 int rl78_reset(port_handle_t fd, int mode)
 {
-    if (mode == 4) // operating in mode 5
-    {
-        printf("Force reset with SW not available \r\n");
-    }
-    else {
         serial_set_txd(fd, 1);                                  /* TOOL0 -> 1 */
         rl78_set_reset(fd, mode, 0);                            /* RESET -> 0 */
         usleep(10000);
         rl78_set_reset(fd, mode, 1);                            /* RESET -> 1 */ 
-    }
     return 0;
     
 }
@@ -198,7 +197,7 @@ int rl78_send_cmd(port_handle_t fd, int cmd, const void *data, int len)
     buf[len + 4] = ETX;
     int ret = serial_write(fd, buf, sizeof buf);
     // Read back echo
-    if (1 == communication_mode)
+    if ((1 == communication_mode) | (5 == communication_mode))
     {
         serial_read(fd, buf, sizeof buf);
     }
