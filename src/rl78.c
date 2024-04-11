@@ -33,11 +33,6 @@ static unsigned char communication_mode;
 static void rl78_set_reset(port_handle_t fd, int mode, int value)
 // Set reset signal for MCU based on mode (not applicable for mode 5 with hardware switch)
 {
-    if (mode == 4) // operating in mode 5
-    {
-        printf("No GPIO SW reset available, must use switch\r\n");
-    }
-    else {
     int level  = (mode & MODE_INVERT_RESET) ? !value : value;
 
     if (MODE_RESET_RTS == (mode & MODE_RESET))
@@ -48,7 +43,6 @@ static void rl78_set_reset(port_handle_t fd, int mode, int value)
     {
         serial_set_dtr(fd, level);
     }
-    }
 }
 
 int rl78_reset_init(port_handle_t fd, int wait, int baud, int mode, float voltage)
@@ -57,37 +51,41 @@ int rl78_reset_init(port_handle_t fd, int wait, int baud, int mode, float voltag
     unsigned char r;
     //(mode = desired communication mode from terminal input - 1)
 
-   // Determine UART mode from mode argument
+    // Determine UART mode from mode argument
     if (MODE_UART_1 == (mode & MODE_UART))
     {
         r = SET_MODE_1WIRE_UART;
-        communication_mode = 1;
+        if (MODE_RESET_INPUT_TRUE == (mode & MODE_RESET_INPUT)) // sequencing for mode 5 and 6
+        {
+            communication_mode = 5;
+        }
+        else {
+            communication_mode = 1;
+        }
+        
     }
     
     else
     {
         r = SET_MODE_2WIRE_UART;
-        communication_mode = 2;
+        if (MODE_RESET_INPUT_TRUE == (mode & MODE_RESET_INPUT)) // sequencing for mode 5 and 6
+        {
+            communication_mode = 6;
+        }
+        else {
+            communication_mode = 2;
+        }
+        //communication_mode = 2;
     }
     if (4 <= verbose_level)
     {
-        if (mode == 4) // Special case for mode 5
-        {
-            communication_mode = 5;
-            printf("Using communication mode 5 (HW RESET with CTS reading RESET)\n");
-        }
-        else
-        {
         printf("Using communication mode %u%s\n",
-               (mode & (MODE_UART | MODE_RESET)) + 1,
+               (mode & (MODE_UART | MODE_RESET | MODE_RESET_INPUT)) + 1,
                (mode & MODE_INVERT_RESET) ? " with RESET inversion" : "");
-        }   
-    }
+        }
     // Begin reset procedure
-    if (mode == 4) // sequencing for mode 5
+    if (MODE_RESET_INPUT_TRUE == (mode & MODE_RESET_INPUT)) // sequencing for mode 5 and 6
     {
-        //printf("Turn MCU's power on with RESET low. Press any key to continue...\n");
-        //wait_kbhit();
         serial_set_txd(fd, 0);
         printf("Press and hold RESET.\n");
         int reset = serial_get_cts(fd);
@@ -123,8 +121,7 @@ int rl78_reset_init(port_handle_t fd, int wait, int baud, int mode, float voltag
         serial_flush(fd);
         
     }
-    else if ((mode == 0) | (mode == 1) | (mode == 2))
-    { // sequencing for mode 1,2,3,4
+    else { // sequencing for mode 1,2,3,4
         rl78_set_reset(fd, mode, 0);                            /* RESET -> 0 */
         serial_set_txd(fd, 0);                                  /* TOOL0 -> 0 */
         if (wait)
@@ -146,7 +143,7 @@ int rl78_reset_init(port_handle_t fd, int wait, int baud, int mode, float voltag
         printf("Send 1-byte data for setting mode\n");
     }
     serial_write(fd, &r, 1);
-    if ((1 == communication_mode) | (5 == communication_mode))
+    if (((1 | 5) == communication_mode))
     {
         serial_read(fd, &r, 1);
     }
@@ -197,7 +194,7 @@ int rl78_send_cmd(port_handle_t fd, int cmd, const void *data, int len)
     buf[len + 4] = ETX;
     int ret = serial_write(fd, buf, sizeof buf);
     // Read back echo
-    if ((1 == communication_mode) | (5 == communication_mode))
+    if ((1 | 5) == communication_mode)
     {
         serial_read(fd, buf, sizeof buf);
     }
@@ -218,7 +215,7 @@ int rl78_send_data(port_handle_t fd, const void *data, int len, int last)
     buf[len + 3] = last ? ETX : ETB;
     int ret = serial_write(fd, buf, sizeof buf);
     // Read back echo
-    if (1 == communication_mode)
+    if ((1 | 5) == communication_mode)
     {
         serial_read(fd, buf, sizeof buf);
     }
